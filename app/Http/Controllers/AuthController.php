@@ -4,39 +4,82 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    public function register(Request $request, User $user)
+    public function register(Request $request)
     {
-        return $user->saveUser($request)->generateAndSaveApiAuthToken();
+        $user = User::create([
+            'name' => $request['name'],
+            'email' => $request['email'],
+            'password' => bcrypt($request['password'])
+        ]);
+
+        $token = $user->createToken('assigmenttoken')->plainTextToken;
+
+        $response = [
+            'user' => $user,
+            'token' => $token,
+            'message'=> 'user registered successfully'
+        ];
+        
+        return response($response, 201);
     }
 
     public function login(Request $request)
     {
-        $credentials = [
+        /* $credentials = [
             'email' => $request->email,
             'password' => $request->password,
+        ]; */
+        $user = User::where('email', $request['email'])->first();
+
+        if(!$user || !Hash::check($request['password'], $user->password)) {
+            
+            return response([
+                'message' => 'Bad credentials'
+            ], 401);
+        }
+        $token = $user->createToken('assigmenttoken')->plainTextToken;
+
+        $response = [
+            'user' => $user,
+            'token' => $token,
+            'message'=>'User Logged in successfully'
         ];
 
-        if (Auth::guard('web')->attempt($credentials)) {
-            $user = Auth::guard('web')->user()->generateAndSaveApiAuthToken();
-            return $user;
-        }
-
-        return response()->json(['message' => 'Please try again later...'], 401);
+        return response($response, 201);
     }
 
-    public function logout(Request $request)
+    public function logout()
     {
-        $user = Auth::guard('api')->user();
+        auth()->user()->tokens()->delete();
+        $response = [
+            'message'=>'User Logged out successfully'
+        ];
+        return response($response, 201);
+    }
 
-        if ($user) {
-            $user->api_token = null;
-            $user->save();
-        }
+    public function get_all_profile(){
+        $users = User::all();
+        $response = [
+            'message'=>'List of All the Users',
+            'users'=>$users,
+        ];
 
-        return response()->json(['Success' => 'User Logged out'], 200);
+        return response($response, 201);
+    }
+
+    public function get_profile($id){
+        $user = User::find($id);
+        $response = [
+            'message'=>'Single User',
+            'users'=>$user,
+        ];
+
+        return response($response, 201);
     }
 }
